@@ -5,6 +5,7 @@ import Pagination from './components/Pagination';
 import { useEffect } from 'react';
 import Loader from './Loader';
 import Progress from './components/Progress';
+import axios from 'axios';
 //import Button from './Button';
 
 interface Item {
@@ -17,14 +18,16 @@ interface Item {
 }
 
 interface TableProps {
-  data: Item[];
+  currentData: Item[];
+  searchedData: Item[];
   deleteItem: (id: number) => void;
   toggleItem: (id: number) => void;
   editItem: (id: number, updatedItem: Item) => void;
 }
 
 const Table: React.FC<TableProps> = ({
-  data,
+  currentData,
+  searchedData,
   deleteItem,
   toggleItem,
   editItem,
@@ -41,7 +44,7 @@ const Table: React.FC<TableProps> = ({
 
   const handleEdit = (id: number) => {
     setEditableItemId(id);
-    const itemToEdit = data.find((item) => item.id === id);
+    const itemToEdit = currentData.find((item) => item.id === id);
     if (itemToEdit) {
       setEditedItem({ ...itemToEdit });
     }
@@ -84,14 +87,14 @@ const Table: React.FC<TableProps> = ({
   //Edit End
 
   //filter start
+  if (sortBy === 'default') sortedItems = currentData;
 
-  if (sortBy === 'default') sortedItems = data;
-
-  if (sortBy === 'task')
-    sortedItems = data.slice().sort((a, b) => a.task.localeCompare(b.task));
+  if (sortBy === 'task') {
+    sortedItems = searchedData.slice().sort((a, b) => a.task.localeCompare(b.task));
+  }
 
   if (sortBy === 'due')
-    sortedItems = data
+    sortedItems = searchedData
       .slice()
       .sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
 
@@ -102,13 +105,13 @@ const Table: React.FC<TableProps> = ({
       Could: 3,
       "Won't": 4,
     };
-    sortedItems = data
+    sortedItems = searchedData
       .slice()
       .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   }
 
   if (sortBy === 'status')
-    sortedItems = data
+    sortedItems = searchedData
       .slice()
       .sort((a, b) => Number(a.status) - Number(b.status));
 
@@ -164,16 +167,17 @@ const Table: React.FC<TableProps> = ({
             <tr key={item.id}>
               <td>{item.id}</td>
               <td>
-                {editableItemId === item.id ? (
+                {/* {editableItemId === item.id ? (
                   <input
                     type="date"
                     name="due"
-                    value={editedItem?.due.toISOString().substr(0, 10)}
+                    value={editedItem?.due?.toISOString().substr(0, 10)}
                     onChange={handleChange}
                   />
                 ) : (
-                  item.due.toLocaleDateString()
-                )}
+                  item.due
+                )} */}
+                {item.due}
               </td>
               <td>
                 {editableItemId === item.id ? (
@@ -286,96 +290,143 @@ const Table: React.FC<TableProps> = ({
   );
 };
 
-const dummyData: Item[] = [
-  {
-    id: 1,
-    due: new Date(),
-    priority: 'Must',
-    task: 'Speaking',
-    status: false,
-    attachments: [],
-  },
-  {
-    id: 2,
-    due: new Date(),
-    priority: 'Must',
-    task: 'Writing',
-    status: true,
-    attachments: [],
-  },
-  {
-    id: 3,
-    due: new Date(),
-    priority: 'Must',
-    task: 'Listening',
-    status: true,
-    attachments: [],
-  },
-  {
-    id: 4,
-    due: new Date(),
-    priority: 'Must',
-    task: 'Reading',
-    status: true,
-    attachments: [],
-  },
-  {
-    id: 5,
-    due: new Date(),
-    priority: 'Must',
-    task: 'Evaluating',
-    status: true,
-    attachments: [],
-  },
-  {
-    id: 6,
-    due: new Date(),
-    priority: 'Could',
-    task: 'Have a nap',
-    status: false,
-    attachments: [],
-  },
-];
-
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [items, setItems] = useState<Item[]>(dummyData);
+  const [items, setItems] = useState<Item[]>([]);
   const [searchItems, setSearchItems] = useState<string>('');
-  const searchedItems = searchItems
-    ? items.filter((item) =>
-        item.task.toLowerCase().includes(searchItems.toLowerCase()),
-      )
-    : items;
+  // const searchedItems = searchItems
+  //   ? items.filter((item) =>
+  //       item.task.toLowerCase().includes(searchItems.toLowerCase()),
+  //     )
+  //   : items;
+  const [searchedItems, setSearchedItems] = useState<Item[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [recordsPerPage] = useState(5);
 
+  // useEffect(() => {
+  //   const timeout = setTimeout(() => {
+  //     setIsLoading(false);
+  //   }, 2000);
+  //   return () => clearTimeout(timeout);
+  // }, []);
+
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-    return () => clearTimeout(timeout);
+    axios
+      .get('http://localhost:3000/api/items')
+      .then((response) => {
+        setItems(response.data);
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        console.error('Error fetching data:', error);
+        setIsLoading(false);
+      });
   }, []);
 
+  // const handleSearch = async (searchQuery: string) => {
+  //   try {
+  //     if (searchQuery === '') {
+  //       setSearchedItems(items);
+  //     } else {
+  //       const response = await axios.get(`http://localhost:3000/api/items/search?q=${searchQuery}`);
+  //       setSearchedItems(response.data);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error searching items:', error);
+  //   }
+  // };
+
+  useEffect(() => {
+    if (searchItems.trim() !== '') {
+      axios
+        .get(`http://localhost:3000/api/items/search?q=${searchItems}`)
+        .then((response) => {
+          console.log(response.data);
+          setSearchedItems(response.data);
+        })
+        .catch((error) => {
+          console.error('Error searching items:', error);
+        });
+    } else {
+      setSearchedItems(items);
+    }
+  }, [searchItems, items]);
+
+  // function handleAddItems(item: Item) {
+  //   setItems((items) => [...items, item]);
+  // }
   function handleAddItems(item: Item) {
-    setItems((items) => [...items, item]);
+    axios
+      .post('http://localhost:3000/api/items', item)
+      .then((response) => {
+        setItems((items) => [...items, response.data.item]);
+      })
+      .catch((error) => {
+        console.error('Error adding item:', error);
+      });
   }
 
   function handleDeleteItem(id: number) {
-    setItems((items) => items.filter((item) => item.id !== id));
+    axios
+      .delete(`http://localhost:3000/api/items/${id}`)
+      .then(() => {
+        setItems((items) => items.filter((item) => item.id !== id));
+      })
+      .catch((error) => {
+        console.error('Error deleting item:', error);
+      });
   }
+
+  // function handleDeleteItem(id: number) {
+  //   setItems((items) => items.filter((item) => item.id !== id));
+  // }
+
+  // function handleToggleItem(id: number) {
+  //   setItems((items) =>
+  //     items.map((item) =>
+  //       item.id === id ? { ...item, status: !item.status } : item,
+  //     ),
+  //   );
+  // }
 
   function handleToggleItem(id: number) {
-    setItems((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, status: !item.status } : item,
-      ),
-    );
+    axios
+      .put(`http://localhost:3000/api/items/${id}/toggle`)
+      .then((response) => {
+        // Update the state with the updated item received from the backend
+        const updatedItem = response.data.item;
+        setItems((items) =>
+          items.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item,
+          ),
+        );
+      })
+      .catch((error) => {
+        // Handle errors, such as displaying an error message
+        console.error('Error toggling item status:', error);
+      });
   }
 
+  // function handleEditItem(id: number, updatedItem: Item) {
+  //   setItems((items) =>
+  //     items.map((item) => (item.id === id ? updatedItem : item)),
+  //   );
+  // }
+
   function handleEditItem(id: number, updatedItem: Item) {
-    setItems((items) =>
-      items.map((item) => (item.id === id ? updatedItem : item)),
-    );
+    axios
+      .put(`http://localhost:3000/api/items/${id}`, updatedItem)
+      .then((response) => {
+        const updatedItem = response.data.item;
+        setItems((items) =>
+          items.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item,
+          ),
+        );
+      })
+      .catch((error) => {
+        console.error('Error updating item:', error);
+      });
   }
 
   const indexOfLastRecord = currentPage * recordsPerPage;
@@ -385,6 +436,8 @@ const App: React.FC = () => {
     indexOfLastRecord,
   );
   const nPages = Math.ceil(searchedItems.length / recordsPerPage);
+  console.log(searchedItems);
+  console.log(currentItems);
 
   return (
     <div className="grid h-screen bg-stone-700">
@@ -397,12 +450,13 @@ const App: React.FC = () => {
         </div>
         <div className="pt-4 sm:px-20 sm:pt-10">
           <SearchForm
-            searchItems={searchItems}
             setSearchItems={setSearchItems}
+            searchItems={searchItems}
           />
           <AddForm onAddItems={handleAddItems} />
           <Table
-            data={currentItems}
+            currentData={currentItems}
+            searchedData={searchedItems}
             deleteItem={handleDeleteItem}
             toggleItem={handleToggleItem}
             editItem={handleEditItem}
